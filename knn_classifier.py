@@ -20,6 +20,14 @@ def main():
 	train_df = pd.DataFrame(train_set['data'])
 	test_df = pd.DataFrame(test_set['data'])
 
+	metadata_df = pd.DataFrame(train_set['metadata'])
+	labels = metadata_df['features']
+	labels1 = labels[len(labels) - 1]
+	#print(labels1[1])
+	dictOfLabels = {}
+	for la in labels1[1]:
+		dictOfLabels[la] = 0
+
 	train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
 	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std()
 	test_mean = test_df.loc[:,test_df.columns != len(test_df.columns)-1].select_dtypes(include=[np.number]).mean()
@@ -34,11 +42,24 @@ def main():
 	words_train = train_df.select_dtypes(exclude=[np.number])
 	words_test = test_df.select_dtypes(exclude=[np.number])
 
+	word_tr = np.array(words_train)
+	word_test = np.array(words_test)
 
-	dist_dict = computeManhattan(np_tr, np_test)
-	# dist_dict_ham = computeHamming(words_train, words_test)
+	#dist_dict = computeManhattan(np_tr, np_test)
+	ham_dict = computeHamming(words_train, words_test)
+	print(ham_dict)
+	#getMin(k, dist_dict, dictOfLabels)
 
-	print dist_dict
+def getMin(k, distance_dict, labels):
+	for i in distance_dict:
+		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
+		firstk = sortedguy[0:k]
+		d = labels.fromkeys(labels, 0)
+		for tuples in firstk:
+			if tuples[2] in d:
+				d[tuples[2]] += 1
+		maximum = max(d, key=d.get)
+		print(d.values(), maximum)
 
 def getStan(dfmean, dfstd, df):
 	num_df = df.loc[:, df.columns != len(df.columns)-1].select_dtypes(include=[np.number])	
@@ -47,51 +68,45 @@ def getStan(dfmean, dfstd, df):
 	return stan_df
 
 def computeManhattan(stan_train, stan_test):
-#	print(stan_train)
-#	print(stan_test)
 	dict_dist = {}
 	instance1 = 0
-	for row in np.nditer(stan_test):
-		instance1 += 1
-	#	print('here')
-		print(instance1)
-	#	print(row)
-	 	list_of_instances = []
-	 	dict_dist[instance1] = list_of_instances
-	 	instance = 0
-	 	for row2 in np.nditer(stan_train):
-	 		instance += 1
-	 		distance_for_this_instance = 0
-	 		label = row2[-1]
-	 		iterrow = row2[:len(row2) - 1]
-	 		which_feature = 0
-	 		for i in np.nditer(iterrow):
-	 			which_feature += 1
-	 			distance = abs(i - row[which_feature])
-	 			distance_for_this_instance += distance
-	 			dict_dist[instance1].append((instance1, distance_for_this_instance, label))
-	 		# distance_vector = abs(iterrow - row[:len(row) - 1])
-	 		# distance_for_this_instance = distance_vector.sum()
-	 		# dict_dist[index].append((index_train, distance_for_this_instance, label)) 
+
+	for row in stan_test:
+		print row
+		# instance1 += 1
+		# print(instance1)
+	 # 	list_of_instances = []
+	 # 	dict_dist[instance1] = list_of_instances
+	 # 	instance = 0
+	 # 	rowtosub = row[:len(row) - 1]
+	 # 	for row2 in stan_train:
+	 # 		instance += 1
+	 # 		label = row2[-1]
+	 # 		iterrow = row2[:len(row2) - 1]
+	 # 		newone = abs(iterrow - rowtosub)
+	 # 		distance = np.nansum(newone)
+ 	# 		dict_dist[instance1].append((instance, distance, label))	
 	return dict_dist
 
-# def computeHamming(words_train, words_test):
-# 	ham_dict = {}
-# 	for index, row in words_test.iterrows():
-# 		print index
-# 		list_of_instances = []
-# 		ham_dict[index] = list_of_instances
-# 		for index_train, row_train in words_train.iterrows():
-# 			distance_for_this_instance = 0
-# 			label = row_train.tail(1)
-# 			iterrow = row_train[:len(row_train) - 1]
-# 			row2 = row[:len(row) - 1]
-# 			distvec = iterrow.where(iterrow.values!=row2.values)
-# 			distance = distvec.count()
-# 			instance_append = ((index_train, distance, label))
-# 			ham_dict[index].append(instance_append)
+def computeHamming(words_train, words_test):
+	ham_dict = {}
+	instance1 = 0
+	for row in words_test:
+		instance1 += 1 
+		list_of_instances = []
+		ham_dict[instance1] = list_of_instances
+		instance = 0
+		rowtosub = row[:len(row) - 1]
+		for row2 in words_train:
+			instance += 1
+			label = row2[-1]
+			iterrow = row2[:len(row2) - 1]
+			distvec = iterrow.where(iterrow.values!=row2.values)
+			distance = distvec.count()
+			instance_append = ((instance, distance, label))
+			ham_dict[index].append(instance_append)
 
-# 	return ham_dict
+	return ham_dict
 
 if __name__ == '__main__':
 	main() 
