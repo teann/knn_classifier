@@ -6,14 +6,13 @@ import json
 import pandas as pd
 import sys
 from pprint import pprint
+import collections
+
 
 def main():
 	k = int(sys.argv[1])
 	train_file = open(sys.argv[2])
 	test_file = open(sys.argv[3])
-
-	#sys.stdout = open('out.txt', 'w')
-
 
 	train_set = json.load(train_file)
 	test_set = json.load(test_file)
@@ -24,7 +23,7 @@ def main():
 	labels = metadata_df['features']
 	labels1 = labels[len(labels) - 1]
 	#print(labels1[1])
-	dictOfLabels = {}
+	dictOfLabels = collections.OrderedDict()
 	for la in labels1[1]:
 		dictOfLabels[la] = 0
 
@@ -33,22 +32,32 @@ def main():
 	test_mean = test_df.loc[:,test_df.columns != len(test_df.columns)-1].select_dtypes(include=[np.number]).mean()
 	test_std = test_df.loc[:,test_df.columns != len(test_df.columns)-1].select_dtypes(include=[np.number]).std()
 
-	stan_train = getStan(train_mean, train_std, train_df)
-	stan_test = getStan(test_mean, test_std, test_df)
+	num_train = train_df.select_dtypes(include=[np.number])
+	num_test = test_df.select_dtypes(include=[np.number])
 
-	np_tr = np.array(stan_train)
-	np_test = np.array(stan_test)
    
 	words_train = train_df.select_dtypes(exclude=[np.number])
 	words_test = test_df.select_dtypes(exclude=[np.number])
 
-	word_tr = np.array(words_train)
-	word_test = np.array(words_test)
-	#dist_dict = computeManhattan(np_tr, np_test)
-	ham_dict = computeHamming(word_tr, word_test)
-	
-	#getMin(k, dist_dict, dictOfLabels)
-	getMin(k, ham_dict, dictOfLabels)
+
+	if (len(num_test.columns) > 0):
+		stan_train = getStan(train_mean, train_std, num_train)
+		stan_test = getStan(test_mean, test_std, num_test)
+
+		np_tr = np.array(stan_train)
+		np_test = np.array(stan_test)
+
+		dist_dict = computeManhattan(np_tr, np_test)
+		getMin(k, dist_dict, dictOfLabels)
+
+	if (len(words_test.columns) > 0):
+		word_tr = np.array(words_train)
+		word_test = np.array(words_test)
+
+		ham_dict = computeHamming(word_tr, word_test)
+		getMin(k, ham_dict, dictOfLabels)
+
+
 def getMin(k, distance_dict, labels):
 	for i in distance_dict:
 		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
@@ -58,7 +67,7 @@ def getMin(k, distance_dict, labels):
 			if tuples[2] in d:
 				d[tuples[2]] += 1
 		maximum = max(d, key=d.get)
-		print(d.values(), maximum)
+		print(','.join(str(i) for i in d.values()) + ',' + str(maximum))
 
 def getStan(dfmean, dfstd, df):
 	num_df = df.loc[:, df.columns != len(df.columns)-1].select_dtypes(include=[np.number])	
