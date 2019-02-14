@@ -23,26 +23,26 @@ def main():
 	labels = metadata_df['features']
 	labels1 = labels[len(labels) - 1]
 	#print(labels1[1])
+	sys.stdout = open("out.txt" , "w")
 	dictOfLabels = collections.OrderedDict()
 	for la in labels1[1]:
 		dictOfLabels[la] = 0
 
+
 	train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
-	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std()
-	test_mean = test_df.loc[:,test_df.columns != len(test_df.columns)-1].select_dtypes(include=[np.number]).mean()
-	test_std = test_df.loc[:,test_df.columns != len(test_df.columns)-1].select_dtypes(include=[np.number]).std()
+	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
 
 	num_train = train_df.select_dtypes(include=[np.number])
 	num_test = test_df.select_dtypes(include=[np.number])
 
-   
+
 	words_train = train_df.select_dtypes(exclude=[np.number])
 	words_test = test_df.select_dtypes(exclude=[np.number])
 
 
 	if (len(num_test.columns) > 0):
 		stan_train = getStan(train_mean, train_std, num_train)
-		stan_test = getStan(test_mean, test_std, num_test)
+		stan_test = getStan(train_mean, train_std, num_test)
 
 		np_tr = np.array(stan_train)
 		np_test = np.array(stan_test)
@@ -57,15 +57,23 @@ def main():
 		ham_dict = computeHamming(word_tr, word_test)
 		getMin(k, ham_dict, dictOfLabels)
 
+def nansumwrapper(a, **kwargs):
+    if np.isnan(a).all():
+        return np.nan
+    else:
+        return np.nansum(a, **kwargs)
+
 
 def getMin(k, distance_dict, labels):
 	for i in distance_dict:
 		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
 		firstk = sortedguy[0:k]
+#	print(sortedguy)
+	#	print(firstk)
 		d = labels.fromkeys(labels, 0)
+	#	print(d)
 		for tuples in firstk:
-			if tuples[2] in d:
-				d[tuples[2]] += 1
+			d[tuples[2]] += 1
 		maximum = max(d, key=d.get)
 		print(','.join(str(i) for i in d.values()) + ',' + str(maximum))
 
@@ -76,25 +84,26 @@ def getStan(dfmean, dfstd, df):
 	return stan_df
 
 def computeManhattan(stan_train, stan_test):
-	dict_dist = {}
+	dict_dist = collections.OrderedDict()
 	instance1 = 0
 	for row in stan_test:
 		instance1 += 1
-	 	list_of_instances = []
-	 	dict_dist[instance1] = list_of_instances
-	 	instance = 0
-	 	rowtosub = row[:len(row) - 1]
-	 	for row2 in stan_train:
-	 		instance += 1
-	 		label = row2[-1]
-	 		iterrow = row2[:len(row2) - 1]
-	 		newone = abs(iterrow - rowtosub)
-	 		distance = np.nansum(newone)
- 			dict_dist[instance1].append((instance, distance, label))	
+		list_of_instances = []
+		dict_dist[instance1] = list_of_instances
+		instance = 0
+		rowtosub = row[:len(row) - 1]
+		for row2 in stan_train:
+			instance += 1
+			label = row2[-1]
+			iterrow = row2[:len(row2) - 1]
+			newone = np.absolute(np.subtract(rowtosub, iterrow))
+			distance = np.nansum(newone)
+			dict_dist[instance1].append((instance, distance, label))	
+	#print(dict_dist[607])
 	return dict_dist
 
 def computeHamming(words_train, words_test):
-	ham_dict = {}
+	ham_dict = collections.OrderedDict()
 	instance1 = 0
 	for row in words_test:
 	#	print(row)
