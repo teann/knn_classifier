@@ -1,0 +1,1 @@
+/usr/bin/python3.6 knn_classifier.py $1 $2 $3 $4

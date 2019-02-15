@@ -31,6 +31,7 @@ def main():
 
 	train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
 	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
+	train_std = train_std.replace(0, 1)
 
 	num_train = train_df.select_dtypes(include=[np.number])
 	num_test = test_df.select_dtypes(include=[np.number])
@@ -39,6 +40,7 @@ def main():
 	words_train = train_df.select_dtypes(exclude=[np.number])
 	words_test = test_df.select_dtypes(exclude=[np.number])
 
+	dist_dict = collections.OrderedDict()
 
 	if (len(num_test.columns) > 0):
 		stan_train = getStan(train_mean, train_std, num_train)
@@ -46,16 +48,16 @@ def main():
 
 		np_tr = np.array(stan_train)
 		np_test = np.array(stan_test)
-
 		dist_dict = computeManhattan(np_tr, np_test)
-		getMin(k, dist_dict, dictOfLabels)
+		stringtoprint = getMin(k, dist_dict, dictOfLabels)
 
 	if (len(words_test.columns) > 0):
 		word_tr = np.array(words_train)
 		word_test = np.array(words_test)
+		ham_dict = computeHamming(word_tr, word_test, dist_dict)
+		stringtoprint = getMin(k, ham_dict, dictOfLabels)
 
-		ham_dict = computeHamming(word_tr, word_test)
-		getMin(k, ham_dict, dictOfLabels)
+	print(*stringtoprint, sep ="\n")
 
 def nansumwrapper(a, **kwargs):
     if np.isnan(a).all():
@@ -65,6 +67,7 @@ def nansumwrapper(a, **kwargs):
 
 
 def getMin(k, distance_dict, labels):
+	stringarray = []
 	for i in distance_dict:
 		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
 		firstk = sortedguy[0:k]
@@ -75,12 +78,13 @@ def getMin(k, distance_dict, labels):
 		for tuples in firstk:
 			d[tuples[2]] += 1
 		maximum = max(d, key=d.get)
-		print(','.join(str(i) for i in d.values()) + ',' + str(maximum))
+		stringarray.append(str(','.join(str(i) for i in d.values()) + ',' + str(maximum)))
+	return stringarray
 
 def getStan(dfmean, dfstd, df):
-	num_df = df.loc[:, df.columns != len(df.columns)-1].select_dtypes(include=[np.number])	
-	stan_df = (num_df.loc[:,num_df.columns != len(num_df.columns)-1] - dfmean)/dfstd
-	stan_df[len(stan_df.columns)] = df.iloc[:,-1]
+	stan_df = (df- dfmean)/dfstd
+	#stan_df[len(stan_df.columns)] = df.iloc[:,-1]
+	stan_df[len(stan_df.columns) - 1] = df.iloc[:,-1]
 	return stan_df
 
 def computeManhattan(stan_train, stan_test):
@@ -102,8 +106,7 @@ def computeManhattan(stan_train, stan_test):
 	#print(dict_dist[607])
 	return dict_dist
 
-def computeHamming(words_train, words_test):
-	ham_dict = collections.OrderedDict()
+def computeHamming(words_train, words_test, ham_dict):
 	instance1 = 0
 	for row in words_test:
 	#	print(row)
