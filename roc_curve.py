@@ -1,4 +1,4 @@
-#!/usr/bin/python3.6 knn_classifier.py
+#!/usr/bin/python3.6 roc_curve.py
 
 import math
 import numpy as np
@@ -23,11 +23,13 @@ def main():
 	labels = metadata_df['features']
 	labels1 = labels[len(labels) - 1]
 	#print(labels1[1])
-	sys.stdout = open("out.txt" , "w")
+
+	#sys.stdout = open("out.txt" , "w")
 	dictOfLabels = collections.OrderedDict()
 	for la in labels1[1]:
 		dictOfLabels[la] = 0
 
+	oneLabel = labels1[1][0]
 
 	train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
 	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
@@ -41,6 +43,8 @@ def main():
 	words_test = test_df.select_dtypes(exclude=[np.number])
 
 	dist_dict = collections.OrderedDict()
+	validator = np.array(test_df.iloc[:,-1])
+
 	if (len(num_test.columns) > 0):
 		stan_train = getStan(train_mean, train_std, num_train)
 		stan_test = getStan(train_mean, train_std, num_test)
@@ -48,15 +52,15 @@ def main():
 		np_tr = np.array(stan_train)
 		np_test = np.array(stan_test)
 		dist_dict = computeManhattan(np_tr, np_test)
-		stringtoprint = getMin(k, dist_dict, dictOfLabels)
+		confidenceLabels = getMin(k, dist_dict, dictOfLabels, oneLabel, validator)
 
 	if (len(words_test.columns) > 0):
 		word_tr = np.array(words_train)
 		word_test = np.array(words_test)
 		ham_dict = computeHamming(word_tr, word_test, dist_dict)
-		stringtoprint = getMin(k, ham_dict, dictOfLabels)
+		confidenceLabels = getMin(k, ham_dict, dictOfLabels, oneLabel, validator)
 
-	print(*stringtoprint, sep ="\n")
+	roc_curve(confidenceLabels, validator, oneLabel)
 
 def nansumwrapper(a, **kwargs):
     if np.isnan(a).all():
@@ -65,8 +69,9 @@ def nansumwrapper(a, **kwargs):
         return np.nansum(a, **kwargs)
 
 
-def getMin(k, distance_dict, labels):
-	stringarray = []
+def getMin(k, distance_dict, labels, oneLabel, validator):
+	eps = 1*10**-5
+	confidenceArray = []
 	for i in distance_dict:
 		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
 		firstk = sortedguy[0:k]
@@ -77,8 +82,19 @@ def getMin(k, distance_dict, labels):
 		for tuples in firstk:
 			d[tuples[2]] += 1
 		maximum = max(d, key=d.get)
-		stringarray.append(str(','.join(str(i) for i in d.values()) + ',' + str(maximum)))
-	return stringarray
+		#print(firstk)
+		prob_numerator = 0
+		prob_denominator = 0
+		for tuples in firstk:
+			#GET THE WEIGHT
+			yn = 0
+			weightForThisInstance = 1/((tuples[1])**2 + eps)
+			if (tuples[2] == oneLabel):
+				yn = 1
+			prob_numerator += weightForThisInstance*yn
+			prob_denominator += weightForThisInstance
+		confidenceArray.append((i, maximum, prob_numerator/prob_denominator, validator[i - 1]))
+	return confidenceArray
 
 def getStan(dfmean, dfstd, df):
 	stan_df = (df- dfmean)/dfstd
@@ -124,6 +140,37 @@ def computeHamming(words_train, words_test, ham_dict):
 			ham_dict[instance1].append(instance_append)
 
 	return ham_dict
+
+def roc_curve(conf_tuples, validator, oneLabel):
+	unique, counts = np.unique(validator, return_counts = True)
+	count_array = dict(zip(unique, counts))
+	conf_tuples = sorted(conf_tuples, key= lambda tup: tup[2], reverse = True)
+	#print(*conf_tuples, sep='\n')
+
+	#print(conf_tuples)
+	num_pos = counts[0]
+	num_neg = counts[1]
+	TP = 0
+	FP = 0
+	last_TP = 0
+
+	for i in range(len(conf_tuples)):
+		if (i > 0) and (conf_tuples[i][2] != conf_tuples[i - 1][2]) and (conf_tuples[i][3] != oneLabel) and (TP > last_TP):
+			FPR = FP/num_neg
+			TPR = TP/num_pos
+			print(str(FPR) + ',' + str(TPR))
+			last_TP = TP
+		if (conf_tuples[i][3] == oneLabel):
+			TP += 1
+		else:
+			FP += 1
+	FPR = FP/num_neg
+	TPR = TP/num_pos
+	print(str(FPR) + ',' + str(TPR))
+
+
+
+
 
 if __name__ == '__main__':
 	main() 

@@ -10,20 +10,17 @@ import collections
 from operator import itemgetter
 
 def main():
-	maxk = int(sys.argv[1])
+	k = int(sys.argv[1])
 	train_file = open(sys.argv[2])
-	val_file = open(sys.argv[3])
-	test_file = open(sys.argv[4])
+	test_file = open(sys.argv[3])
 
 	train_set = json.load(train_file)
 	test_set = json.load(test_file)
-	val_set = json.load(val_file)
 
-	sys.stdout = open("out.txt" , "w")
+	#sys.stdout = open("out.txt" , "w")
 
-	train_df = pd.DataFrame(train_set['data'])
+	train_df_original = pd.DataFrame(train_set['data'])
 	test_df = pd.DataFrame(test_set['data'])
-	val_df = pd.DataFrame(val_set['data'])
 
 	metadata_df = pd.DataFrame(train_set['metadata'])
 	labels = metadata_df['features']
@@ -32,90 +29,46 @@ def main():
 	dictOfLabels = collections.OrderedDict()
 	for la in labels1[1]:
 		dictOfLabels[la] = 0
-
-	train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
-	train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
-	train_std = train_std.replace(0, 1)
-
-	num_train = train_df.select_dtypes(include=[np.number])
-	num_test = val_df.select_dtypes(include=[np.number])
-
-	#print(test_df)
-	words_train = train_df.select_dtypes(exclude=[np.number])
-	words_test = val_df.select_dtypes(exclude=[np.number])
-
-	validator = np.array(val_df.iloc[:,-1])
 	#filler, gotta change this later
-	
+	total_rows = train_df_original.shape[0]
 	dist_dict = collections.OrderedDict()
+	for cut in range(1,11):
+		percent = cut*.1
+		rowsToKeep = math.floor(percent*total_rows)
+		train_df = train_df_original.head(rowsToKeep)
+		train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
+		train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
+		train_std = train_std.replace(0, 1)
 
-	if (len(num_test.columns) > 0):
-		stan_train = getStan(train_mean, train_std, num_train)
-		stan_test = getStan(train_mean, train_std, num_test)
+		num_train = train_df.select_dtypes(include=[np.number])
+		num_test = test_df.select_dtypes(include=[np.number])
 
-		np_tr = np.array(stan_train)
-		np_test = np.array(stan_test)
+		words_train = train_df.select_dtypes(exclude=[np.number])
+		words_test = test_df.select_dtypes(exclude=[np.number])
 
-		dist_dict = computeManhattan(np_tr, np_test)
-	#	print(dist_dict)
-		(stringtoprint, minimumk) = getMin(maxk, dist_dict, dictOfLabels, validator, 0)
-	#	print(dist_dict)
-		####RETRAIN
+		validator = np.array(test_df.iloc[:,-1])
+		if (len(num_test.columns) > 0):
+			stan_train = getStan(train_mean, train_std, num_train)
+			stan_test = getStan(train_mean, train_std, num_test)
 
+			np_tr = np.array(stan_train)
+			np_test = np.array(stan_test)
 
-	if (len(words_test.columns) > 0):
-		word_tr = np.array(words_train)
-		word_test = np.array(words_test)
-
-		ham_dict = computeHamming(word_tr, word_test, dist_dict)
-		(stringtoprint, minimumk) = getMin(maxk, ham_dict, dictOfLabels, validator, 0)
-		####RETRAIN
-	print(*stringtoprint, sep ='\n')
-	print(minimumk)
-########################################################SPLITS HERE
-
-	trainval_df =  train_df.append(val_df)
-	train_mean = trainval_df.loc[:,trainval_df.columns != len(trainval_df.columns)-1].select_dtypes(include=[np.number]).mean()
-	train_std =  trainval_df.loc[:,trainval_df.columns != len(trainval_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
-	train_std = train_std.replace(0, 1)
+			dist_dict = computeManhattan(np_tr, np_test)
+		#	print(dist_dict)
+			stringtoprint = getMin(k, dist_dict, dictOfLabels, validator)
+		#	print(dist_dict)
+			####RETRAIN
 
 
-	num_train = trainval_df.select_dtypes(include=[np.number])
-	num_test = test_df.select_dtypes(include=[np.number])
+		if (len(words_test.columns) > 0):
+			word_tr = np.array(words_train)
+			word_test = np.array(words_test)
 
-	#print(test_df)
-	words_train = trainval_df.select_dtypes(exclude=[np.number])
-	words_test = test_df.select_dtypes(exclude=[np.number])
-
-	validator = np.array(test_df.iloc[:,-1])
-	#filler, gotta change this later
-	
-	dist_dict = collections.OrderedDict()
-
-
-	if (len(num_test.columns) > 0):
-		stan_train = getStan(train_mean, train_std, num_train)
-		stan_test = getStan(train_mean, train_std, num_test)
-
-		np_tr = np.array(stan_train)
-		np_test = np.array(stan_test)
-
-		dist_dict = computeManhattan(np_tr, np_test)
-	#	print(dist_dict)
-		stringtoprint = getMin(minimumk, dist_dict, dictOfLabels, validator, 1)
-	#	print(dist_dict)
-		####RETRAIN
-
-
-	if (len(words_test.columns) > 0):
-		word_tr = np.array(words_train)
-		word_test = np.array(words_test)
-
-		ham_dict = computeHamming(word_tr, word_test, dist_dict)
-		stringtoprint = getMin(minimumk, ham_dict, dictOfLabels, validator, 1)
-
-	print(*stringtoprint)
-
+			ham_dict = computeHamming(word_tr, word_test, dist_dict)
+			stringtoprint = getMin(k, ham_dict, dictOfLabels, validator)
+			####RETRAIN
+		print(str(rowsToKeep) + ','+ str(*stringtoprint), sep ='\n')
 
 def nansumwrapper(a, **kwargs):
     if np.isnan(a).all():
@@ -124,52 +77,24 @@ def nansumwrapper(a, **kwargs):
         return np.nansum(a, **kwargs)
 
 
-def getMin(maxk, distance_dict, labels, validator, final):
-	listOfK = []
+def getMin(k, distance_dict, labels, validator):
 	stringarray = []
-	if final == 1:
-		k = maxk
-		total = 0
-		correct = 0
-		for i in distance_dict:
-		#	print(i)
-			total += 1
-			sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
-			firstk = sortedguy[0:k]
-			d = labels.fromkeys(labels, 0)
-			for tuples in firstk:
-				if tuples[2] in d:
-					d[tuples[2]] += 1
-			maximum = max(d, key=d.get)
-			if maximum == validator[i - 1]:
-				correct += 1
-		percentageCorrect = correct/total
-		stringarray.append(percentageCorrect)
-		return stringarray
-	else:
-		for k in range(1,maxk + 1):
-			total = 0
-			correct = 0
-			for i in distance_dict:
-			#	print(i)
-				total += 1
-				sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
-				firstk = sortedguy[0:k]
-				d = labels.fromkeys(labels, 0)
-				for tuples in firstk:
-					if tuples[2] in d:
-						d[tuples[2]] += 1
-				maximum = max(d, key=d.get)
-				if maximum == validator[i - 1]:
-					correct += 1
-			percentageCorrect = correct/total
-			listOfK.append([k, percentageCorrect])
-			stringarray.append(str(k) + ',' + str(percentageCorrect))
-
-		sortedlist = sorted(listOfK, key=itemgetter(1), reverse=True)
-			#print(total)
-		return (stringarray, sortedlist[0][0])
-			
+	total = 0
+	correct = 0
+	for i in distance_dict:
+		total += 1
+		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
+		firstk = sortedguy[0:k]
+		d = labels.fromkeys(labels, 0)
+		for tuples in firstk:
+			if tuples[2] in d:
+				d[tuples[2]] += 1
+		maximum = max(d, key=d.get)
+		if maximum == validator[i - 1]:
+			correct += 1
+	percentageCorrect = correct/total
+	stringarray.append(percentageCorrect)
+	return stringarray
 
 
 
