@@ -22,9 +22,7 @@ def main():
 	metadata_df = pd.DataFrame(train_set['metadata'])
 	labels = metadata_df['features']
 	labels1 = labels[len(labels) - 1]
-	#print(labels1[1])
 
-	#sys.stdout = open("out.txt" , "w")
 	dictOfLabels = collections.OrderedDict()
 	for la in labels1[1]:
 		dictOfLabels[la] = 0
@@ -46,32 +44,23 @@ def main():
 		if col_feat[1] == 'numeric':
 			number_numpy_train.append(train_numpy[index])
 			number_numpy_test.append(test_numpy[index])
-		#	print('here')
 		elif col_feat[1] != 'numeric' and col_feat[0] != 'label':
 			word_numpy_train.append(train_numpy[index])
 			word_numpy_test.append(test_numpy[index])
 		if (col_feat[0] == 'label'):
-	#		print('here')
 			number_numpy_train.append(train_numpy[index])
 			number_numpy_test.append(test_numpy[index])
 			word_numpy_train.append(train_numpy[index])
 			word_numpy_test.append( test_numpy[index])
 		index += 1 
-	#print(number_numpy_train)
 	train_df_num = pd.DataFrame(np.transpose(number_numpy_train))
 	test_df_num = pd.DataFrame(np.transpose(number_numpy_test))
-#	print(word_numpy_test)
 	train_df_word = pd.DataFrame(np.transpose(word_numpy_train))
 	test_df_word = pd.DataFrame(np.transpose(word_numpy_test))
 
 	train_mean = train_df_num.loc[:,train_df_num.columns != len(train_df_num.columns)-1].mean()
 	train_std =  train_df_num.loc[:,train_df_num.columns != len(train_df_num.columns)-1].std(ddof = 0)
 	train_std = train_std.replace(0, 1)
-	# print('train')
-	# print(train_df_num)
-	# print('test')
-	# print(test_df_num)
-	# print(train_std)
 	num_train = train_df_num
 	num_test = test_df_num
 
@@ -79,16 +68,6 @@ def main():
 	words_train = train_df_word
 	words_test = test_df_word
 
-	# train_mean = train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).mean()
-	# train_std =  train_df.loc[:,train_df.columns != len(train_df.columns)-1].select_dtypes(include=[np.number]).std(ddof = 0)
-	# train_std = train_std.replace(0, 1)
-
-	# num_train = train_df.select_dtypes(include=[np.number])
-	# num_test = test_df.select_dtypes(include=[np.number])
-
-
-	# words_train = train_df.select_dtypes(exclude=[np.number])
-	# words_test = test_df.select_dtypes(exclude=[np.number])
 
 	dist_dict = collections.OrderedDict()
 	validator = np.array(test_df.iloc[:,-1])
@@ -123,22 +102,18 @@ def getMin(k, distance_dict, labels, oneLabel, validator):
 	for i in distance_dict:
 		sortedguy = sorted(distance_dict[i], key=lambda tup:tup[1])
 		firstk = sortedguy[0:k]
-#	print(sortedguy)
-	#	print(firstk)
 		d = labels.fromkeys(labels, 0)
-	#	print(d)
 		for tuples in firstk:
 			d[tuples[2]] += 1
 		maximum = max(d, key=d.get)
-		#print(firstk)
 		prob_numerator = 0
 		prob_denominator = 0
 		for tuples in firstk:
-			#GET THE WEIGHT
 			yn = 0
-			# print(tuples[1])
+			#calculate confidence for each instance
 			weightForThisInstance = 1/((tuples[1])**2 + eps)
-		#	print(tuples[1])
+			print(weightForThisInstance)
+
 			if (tuples[2] == oneLabel):
 				yn = 1
 			prob_numerator += weightForThisInstance*yn
@@ -148,7 +123,6 @@ def getMin(k, distance_dict, labels, oneLabel, validator):
 
 def getStan(dfmean, dfstd, df):
 	stan_df = (df- dfmean)/dfstd
-	#stan_df[len(stan_df.columns)] = df.iloc[:,-1]
 	stan_df[len(stan_df.columns) - 1] = df.iloc[:,-1]
 	return stan_df
 
@@ -168,13 +142,11 @@ def computeManhattan(stan_train, stan_test):
 			newone = np.absolute(np.subtract(rowtosub, iterrow))
 			distance = np.nansum(newone)
 			dict_dist[instance1].append((instance, distance, label))	
-	#print(dict_dist[607])
 	return dict_dist
 
 def computeHamming(words_train, words_test, ham_dict):
 	instance1 = 0
 	for row in words_test:
-	#	print(row)
 		instance1 += 1
 		list_of_instances = []
 		ham_dict[instance1] = list_of_instances
@@ -190,14 +162,11 @@ def computeHamming(words_train, words_test, ham_dict):
 			ham_dict[instance1].append(instance_append)
 
 	return ham_dict
-
+#roc_curve algo outlined in slides
 def roc_curve(conf_tuples, validator, oneLabel):
 	unique, counts = np.unique(validator, return_counts = True)
 	count_array = dict(zip(unique, counts))
 	conf_tuples = sorted(conf_tuples, key= lambda tup: tup[2], reverse = True)
-	#print(*conf_tuples, sep='\n')
-
-	#print(conf_tuples)
 	num_pos = counts[0]
 	num_neg = counts[1]
 	TP = 0
